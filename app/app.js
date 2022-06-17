@@ -7,136 +7,146 @@ const select = document.querySelector("select");
 const asciiT = asciiModule.ASCII;
 const base64T = base64Module;
 
+//encoding process in 4 steps
 function encode() {
-  const binaryOfAsciiText = asciiLookup(inputField.value, "toencode");
-  const regroupedBinary = regroupBits(binaryOfAsciiText, "8to6bit");
-  const binaryOfBase64Text = base64Lookup(regroupedBinary, "tobase64");
-  const paddedBinaryOfBase64Text = handlePadding(binaryOfBase64Text, "add");
+  const step1 = asciiLookup(inputField.value, "toencode");
+  const step2 = regroupBits(step1, "8to6bit");
+  const step3 = base64Lookup(step2, "tobase64");
+  const step4 = handlePadding(step3, "add");
 
-  outputField.value = paddedBinaryOfBase64Text;
+  return step4;
 }
 
+//decoding process in 4 steps
 function decode() {
-  const paddlessText = handlePadding(inputField.value, "remove");
-  const binaryOfBase64Text = base64Lookup(paddlessText, "frombase64");
-  const regroupedBinary = regroupBits(binaryOfBase64Text, "6to8bit");
-  const asciiConvertedBinary = asciiLookup(regroupedBinary, "todecode");
+  const step1 = handlePadding(inputField.value, "remove");
+  const step2 = base64Lookup(step1, "frombase64");
+  const step3 = regroupBits(step2, "6to8bit");
+  const step4 = asciiLookup(step3, "todecode");
 
-  outputField.value = asciiConvertedBinary;
+  return step4;
 }
 
+//a boilerplate-esque function to help prevent code repetition in certain areas
+function tableCheck(table, type, currentChar, array, valueToReturn) {
+  table.forEach((cell) => {
+    const binaryValue = type === "ascii" ? cell[1] : cell[0];
+    const symbol = type === "ascii" ? cell[2] : cell[1];
+
+    switch (valueToReturn) {
+      case "binary":
+        if (symbol === currentChar) array.push(binaryValue);
+        break;
+      case "symbol":
+        if (currentChar === binaryValue) array.push(symbol);
+        break;
+    }
+  });
+}
+
+//works with extended ascii character table depending on type parameter
 function asciiLookup(input, type) {
   if (type === "toencode") {
     const arr = [];
     const text = input;
     for (let char of text) {
-      asciiT.forEach((asciiCell) => {
-        const binValue = asciiCell[1];
-        const asciiValue = asciiCell[2];
-
-        if (asciiValue === char) arr.push(binValue);
-      });
+      tableCheck(asciiT, "ascii", char, arr, "binary");
     }
     return arr.join("");
   } else if (type === "todecode") {
     let arr = [];
     let bytes = input;
-    bytes.forEach((byte) => {
-      asciiT.forEach((cell) => {
-        const binValue = cell[1];
-        const asciiValue = cell[2];
-
-        if (binValue === byte) arr.push(asciiValue);
+    if (bytes != null) {
+      bytes.forEach((byte) => {
+        tableCheck(asciiT, "ascii", byte, arr, "symbol");
       });
-    });
-    return arr.join("");
-  }
-}
-
-function regroupBits(input, type) {
-  //eightBitToSixBit
-  if (type === "8to6bit") {
-    let bin = input;
-    let binArr = bin.split("");
-    let sixBitsArr = bin.match(/\d{6}/g);
-    let sixBitsStr = sixBitsArr.join("");
-    let sixBitsArr2 = sixBitsStr.split("");
-    let remainingBits = binArr
-      .filter((char, index) => sixBitsArr2[index] == null)
-      .join("");
-    let newGroup = remainingBits;
-    (function extendbin() {
-      if (remainingBits.length !== 0) {
-        while (newGroup.length !== 6) {
-          newGroup = newGroup.concat("0");
-        }
-      }
-    })();
-
-    return [...sixBitsArr, newGroup];
-  } else if (type === "6to8bit") {
-    let bin = input;
-    let eightbits = bin.match(/\d{8}/g);
-    return eightbits;
-  }
-}
-
-function handlePadding(text, type) {
-  if (type === "add") {
-    if (text.length % 4 !== 0) {
-      let textArr = text.split("");
-      while (textArr.length % 4 !== 0) {
-        textArr.push("=");
-      }
-      return textArr.join("");
-    } else {
-      return text;
     }
-  } else if (type === "remove") {
-    if (text.includes("=")) {
-      let textArr = text.split("");
-      return textArr.filter((c) => c !== "=").join("");
-    } else return text;
+    return arr.join("");
   }
 }
 
+//recieves a binary string and returns an array of either 6bits or 8bits grouped together based on type parameter
+function regroupBits(input, type) {
+  switch (type) {
+    case "8to6bit": {
+      let eightBitsArr = input.split("");
+      let sixBitsArr = input.match(/\d{6}/g);
+      let sixBitsArr2 = sixBitsArr.join("").split(""); //array of individualized values
+      let remainingBits = eightBitsArr
+        .filter((char, index) => sixBitsArr2[index] == null)
+        .join("");
+      (function extendbin() {
+        if (remainingBits.length !== 0) {
+          while (remainingBits.length !== 6) {
+            remainingBits = remainingBits.concat("0");
+          }
+        }
+      })();
+
+      return [...sixBitsArr, remainingBits]; //remaining bits are stretched to six bits
+      break;
+    }
+    case "6to8bit": {
+      let eightbits = input.match(/\d{8}/g);
+      return eightbits;
+      break;
+    }
+  }
+}
+
+//adds or removes padding (equal signs) based on type parameter
+function handlePadding(text, type) {
+  switch (type) {
+    case "add": {
+      if (text.length % 4 !== 0) {
+        let textArr = text.split("");
+        while (textArr.length % 4 !== 0) {
+          textArr.push("=");
+        }
+        return textArr.join("");
+      } else return text;
+      break;
+    }
+    case "remove": {
+      if (text.includes("=")) {
+        let textArr = text.split("");
+        return textArr.filter((c) => c !== "=").join("");
+      } else return text;
+      break;
+    }
+  }
+}
+
+//works with base64 character table depending on type parameter
 function base64Lookup(input, type) {
-  if (type === "tobase64") {
-    let arr = [];
-    let bins = input;
-    bins.forEach((bin) => {
-      base64T.forEach((base64Cell) => {
-        let binValue = base64Cell[0];
-        let base64Value = base64Cell[1];
-
-        if (bin === binValue) arr.push(base64Value);
+  let arr = [];
+  switch (type) {
+    case "tobase64": {
+      let bins = input;
+      bins.forEach((bin) => {
+        tableCheck(base64T, "base64", bin, arr, "symbol");
       });
-    });
-    return arr.join("");
-  } else if (type === "frombase64") {
-    let arr = [];
-    let text = input;
-    let textArr = text.split("");
-    textArr.forEach((char) => {
-      base64T.forEach((base64Cell) => {
-        let binValue = base64Cell[0];
-        let base64Value = base64Cell[1];
-
-        if (char === base64Value) arr.push(binValue);
+      break;
+    }
+    case "frombase64": {
+      let text = input;
+      let textArr = text.split("");
+      textArr.forEach((char) => {
+        tableCheck(base64T, "base64", char, arr, "binary");
       });
-    });
-    return arr.join("");
+      break;
+    }
   }
+
+  return arr.join("");
 }
 
-inputField.addEventListener("input", () => {
-  if (inputField.value != "") {
-    select.value === "encode" ? encode() : decode();
-  } else outputField.value = "";
-});
-
-select.addEventListener("input", () => {
-  if (inputField.value != "") {
-    select.value === "encode" ? encode() : decode();
-  } else outputField.value = "";
+[inputField, select].forEach((triggerElement) => {
+  triggerElement.addEventListener("input", () => {
+    if (inputField.value != "") {
+      select.value === "encode"
+        ? (outputField.value = encode())
+        : (outputField.value = decode());
+    } else outputField.value = "";
+  });
 });
